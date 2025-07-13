@@ -7,35 +7,18 @@ const app=express()
 app.use(cors())
 app.use(express.json())
 
-function getFullUPC11To12(upc11) {
-    const upc = String(upc11).padStart(11, '0');
-
-    if (!/^\d{11}$/.test(upc)) {
-        throw new Error("Input must be 11 digits only");
-    }
-
-    let sum = 0;
-    for (let i = 0; i < 11; i++) {
-        const digit = parseInt(upc[i], 10);
-        sum += (i % 2 === 0) ? digit * 3 : digit; // 0-based index: even index = odd position
-    }
-
-    const checkDigit = (10 - (sum % 10)) % 10;
-
-    return upc + checkDigit;
-}
-
 
 app.post("/api/products",async (req,res)=>{
     try{
         console.log("Received request to add product")
         const {Hash,productName,cost,quantity,location}=req.body;
-        const realHash=getFullUPC11To12(Hash)
-        console.log(Hash)
+        // Convert string hash to bigint for database storage
+        const hashBigInt = BigInt(Hash);
+        console.log("Hash:", Hash, "-> BigInt:", hashBigInt)
 
         await pool.query(
-            "INSERT INTO products (hash_id,name,cost,quantity,location) VALUES ($1, $2, $3, $4, $5)",
-            [realHash,productName,cost,quantity,location]
+            "INSERT INTO products (hash_id,name,cost,quantity,location,rfid_status) VALUES ($1, $2, $3, $4, $5, $6)",
+            [hashBigInt,productName,cost,quantity,location,'available']
         );
 
         console.log("Product added successfully")
@@ -48,25 +31,34 @@ app.post("/api/products",async (req,res)=>{
 
 app.get("/api/search",async(req,res)=>{
     const {hash}=req.query;
-    console.log(hash);
+    console.log("Searching for hash:", hash);
 
-    const result=await pool.query(
-        "SELECT name,cost,quantity FROM products where hash_id=$1",
-        [hash]
-    );
+    try {
+        // Convert string hash to bigint for database query
+        const hashBigInt = BigInt(hash);
+        
+        const result=await pool.query(
+            "SELECT name,cost,quantity,rfid_status FROM products where hash_id=$1",
+            [hashBigInt]
+        );
 
-    if (result.rows.length === 0) {
-        return res.status(404).json({ success: false, message: "Product not found" });
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Product not found" });
+        }
+
+        const {name,cost,quantity,rfid_status}=result.rows[0];
+        return res.status(200).json({
+            success:true,
+            productName:name,
+            cost:cost,
+            quantity:1,
+            hash:hash,
+            rfid_status:rfid_status
+        });
+    } catch(err) {
+        console.error("Error searching product:", err);
+        return res.status(500).json({success:false,message:"Error searching product"});
     }
-
-    
-
-    const {name,cost,quantity}=result.rows[0];
-    return res.status(200).json({success:true,
-                                productName:name,
-                                cost:cost,
-                                quantity:1,
-                                hash:hash});
 
 })
 
@@ -86,10 +78,10 @@ app.post("/api/approve",async(req,res)=>{
                 [purchaseId,user_id,totalCost,timeStamp,location]
         )
 
-        res.json({sucess:"sucess"})
+        res.json({success:"success"})
     }
     catch(err){
-        console.log(err);
+        console.error("Error approving purchase:", err);
         res.json({success:"failure"})
     }
 
