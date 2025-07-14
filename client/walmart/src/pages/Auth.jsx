@@ -40,7 +40,7 @@ export default function Auth() {
     setTimeout(() => {
       setIsLoading(false);
       console.log("Login attempted with:", { loginEmail, loginPassword });
-      navigate("/about")
+      navigate("/dashboard")
     }, 2000);
   };
 
@@ -56,6 +56,7 @@ export default function Auth() {
         signupPhone,
         signupPassword,
       });
+      navigate("/dashboard")
     }, 2000);
   };
 
