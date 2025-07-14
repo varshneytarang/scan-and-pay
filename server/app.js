@@ -86,7 +86,7 @@ app.post("/api/approve",async(req,res)=>{
                 [purchaseId,user_id,totalCost,timeStamp,location]
         )
 
-        res.json({sucess:"sucess"})
+        res.json({success:"sucess"})
     }
     catch(err){
         console.log(err);
